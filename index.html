@@ -1,0 +1,153 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+<script>
+var ws;
+var  arr = [];
+var datasetT,datasetH  ;
+
+function getAvg(){
+	var st=0,sh=0;
+	arr.forEach(function(e,i,a){
+		st +=e.temperature;sh +=e.humidity;
+	});
+	var  n = arr.length;
+	return  {"temperature": st/n, "humidity": sh/n};
+}
+function utime2Date(utime){
+		var timeArr = utime.toString().split('.');
+		var mks = timeArr[1], s = timeArr[0];
+		var mlsec = s*1000 + mks/1000;
+		return new Date(mlsec);
+}
+
+function addDataPoint(obj) {
+    datasetT.add({
+      x: utime2Date(obj.utime),
+      y: obj.temperature
+    });
+
+    datasetH.add({
+      x: utime2Date(obj.utime),
+      y: obj.humidity
+    });
+}
+
+function  init(){
+	ws = new WebSocket("wss://roboforge.ru/wsdata");
+	ws.onopen = function(){console.log('connected')};
+	ws.onmessage = function(event){
+		var data = JSON.parse(event.data);
+		addDataPoint(data);
+		console.log('data from server: ');
+		console.log(data);
+		if(arr.length ==10)arr.shift();
+		arr.push(data);
+		show();
+	}
+	
+	var containerT = document.getElementById('visualization-temperature');
+	var containerH = document.getElementById('visualization-humidity');
+	datasetT = new vis.DataSet();
+	datasetH = new vis.DataSet();
+	
+	  var today = new Date(new Date().getTime() + 24 * 60 * 60 * 1000);
+	/*var beforeDay = new Date(today);
+	  beforeDay.setHours(today.getHours() - 6);
+	  var afterDay =  new Date();
+	  afterDay.setDate(today.getDate());*/
+	  //afterDay = today;
+	  var beforeDay = new Date();
+	  beforeDay.setDate(today.getDate()-2);
+	  var afterDay =  new Date();
+	  afterDay.setDate(today.getDate());
+	  
+	  var optionsT = {
+					    start: beforeDay, // changed so its faster
+					    end: afterDay,
+					    dataAxis: {
+					      left: {
+						range: {
+						  min:-50, max: 50
+						}
+					      }
+					    },
+					    drawPoints: {
+					      style: 'circle' // square, circle
+					    },
+					    shaded: {
+					      orientation: 'bottom' // top, bottom
+					    }
+					  };
+		var optionsH = {
+					    start: beforeDay, // changed so its faster
+					    end: afterDay,
+					    dataAxis: {
+					      left: {
+						range: {
+						  min:0, max: 100
+						}
+					      }
+					    },
+					    drawPoints: {
+					      style: 'square' // , circle
+					    },
+					    shaded: {
+					      orientation: 'bottom' // top, bottom
+					    }
+					  };			  
+	  var graph2dT = new vis.Graph2d(containerT, datasetT, optionsT);
+	  var graph2dH= new vis.Graph2d(containerH, datasetH, optionsH);
+	  
+}
+
+function show(){
+	var table = document.querySelector('tbody');
+	elements = document.querySelectorAll(".data");
+	console.log('elem: '+elements.length);
+	elements.forEach(function( node ) {
+	    node.parentNode.removeChild( node );
+	});
+	var curr = arr[arr.length-1];
+	var currStr = '<tr  class="data"><td>Текущее</td><td>'+utime2Date(curr.utime).toString()+'</td><td>'+curr.temperature+'</td><td>'+curr.humidity+'</td></tr>';
+	table.insertAdjacentHTML( 'beforeend', currStr );
+	var avg = getAvg();
+	var avgStr = '<tr  class="data"><td>Среднее</td><td></td><td>'+avg.temperature+'</td><td>'+avg.humidity+'</td></tr>';
+	table.insertAdjacentHTML( 'beforeend', avgStr );
+	arr.forEach(function(e,i,a){
+		var eStr = '<tr class="data" ><td>'+(i+1)+'</td><td>'+utime2Date(e.utime).toString()+'</td><td>'+e.temperature+'</td><td>'+e.humidity+'</td></tr>';
+		table.insertAdjacentHTML( 'beforeend', eStr );
+	});
+	
+}
+
+
+
+//ws.send(JSON.stringify({"name":name, "message":message, "color": color}));
+
+
+</script>
+<style>
+table{border-collapse: collapse;}
+td,th{border:black 1px solid;}
+</style>
+</head>
+<body onload="init();">
+
+<table>
+<thead>
+<tr><th></th><th>Время</th><th>Температура</th><th>Влажность</th></tr>
+</thead>
+<tbody>
+<tr class="data"><td colspan="5">нет данных пока</td></tr>
+</tbody>
+</table>
+
+<div id="visualization-humidity"></div>
+<div id="visualization-temperature"></div>
+
+</body>
+</html>
